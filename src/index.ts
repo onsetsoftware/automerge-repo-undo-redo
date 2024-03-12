@@ -14,8 +14,17 @@ type Change = {
   message?: string;
 };
 
+const equalArrays = (a: any[], b: any[]) =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
 export class AutomergeRepoUndoRedo<T> {
   #docHandle: DocHandle<T>;
+
+  #lastTrackedHeads: string[] = [];
+
+  get handle() {
+    return this.#docHandle;
+  }
 
   #undos: Change[] = [];
   #redos: Change[] = [];
@@ -24,14 +33,10 @@ export class AutomergeRepoUndoRedo<T> {
     this.#docHandle = docHandle;
   }
 
-  // TODO: this transaction should start a
-  // group of changes which can be undone/redone together
-  // rather than just a single change
-
-  transaction(
+  change(
     changeFn: ChangeFn<T>,
     options?: string | ChangeOptions<T>,
-    message?: string
+    message?: string,
   ) {
     if (typeof options === "string") {
       message = options;
@@ -43,13 +48,15 @@ export class AutomergeRepoUndoRedo<T> {
         options.patchCallback(patches, patchInfo);
       }
 
+      this.#lastTrackedHeads = next.getHeads(patchInfo.after);
+
       this.#undos.push({
         redo: {
           heads: next.getHeads(patchInfo.after),
           patches,
         },
         undo: {
-          heads: next.getHeads(patchInfo.after),
+          heads: this.#lastTrackedHeads,
           patches: unpatchAll(patchInfo.before, patches),
         },
         message,
@@ -78,14 +85,26 @@ export class AutomergeRepoUndoRedo<T> {
   undo() {
     const change = this.#undos.pop();
     if (change) {
-      const heads = this.#docHandle.changeAt(change.undo.heads, (doc) => {
-        change.undo.patches.forEach((p) => {
-          patch<T>(doc, p);
+      const doc = this.#docHandle.docSync();
+      if (doc && equalArrays(next.getHeads(doc), this.#lastTrackedHeads)) {
+        this.#docHandle.change((doc) => {
+          change.undo.patches.forEach((p) => {
+            patch<T>(doc, p);
+          });
         });
-      });
 
-      if (heads) {
-        change.redo.heads = heads;
+        const after = this.#docHandle.docSync();
+        this.#lastTrackedHeads = next.getHeads(after!);
+      } else {
+        const heads = this.#docHandle.changeAt(change.undo.heads, (doc) => {
+          change.undo.patches.forEach((p) => {
+            patch<T>(doc, p);
+          });
+        });
+
+        if (heads) {
+          change.redo.heads = heads;
+        }
       }
 
       this.#redos.push(change);
@@ -95,14 +114,26 @@ export class AutomergeRepoUndoRedo<T> {
   redo() {
     const change = this.#redos.pop();
     if (change) {
-      const heads = this.#docHandle.changeAt(change.redo.heads, (doc) => {
-        change.redo.patches.forEach((p) => {
-          patch<T>(doc, p);
+      const doc = this.#docHandle.docSync();
+      if (doc && equalArrays(next.getHeads(doc), this.#lastTrackedHeads)) {
+        this.#docHandle.change((doc) => {
+          change.redo.patches.forEach((p) => {
+            patch<T>(doc, p);
+          });
         });
-      });
 
-      if (heads) {
-        change.undo.heads = heads;
+        const after = this.#docHandle.docSync();
+        this.#lastTrackedHeads = next.getHeads(after!);
+      } else {
+        const heads = this.#docHandle.changeAt(change.redo.heads, (doc) => {
+          change.redo.patches.forEach((p) => {
+            patch<T>(doc, p);
+          });
+        });
+
+        if (heads) {
+          change.undo.heads = heads;
+        }
       }
 
       this.#undos.push(change);

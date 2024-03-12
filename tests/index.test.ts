@@ -1,7 +1,7 @@
 import { AutomergeRepoUndoRedo } from "../src";
 import { DocHandle, Repo } from "@automerge/automerge-repo";
 import { beforeEach, describe, expect, test } from "vitest";
-import { next } from "@automerge/automerge";
+import { getHeads, next } from "@automerge/automerge";
 
 type Data = {
   text: string;
@@ -31,18 +31,18 @@ describe("basic tests", () => {
     expect(undoRedo).toBeDefined();
   });
 
-  test("a transaction can be initiated and a change made to the document", () => {
+  test("a tracked change can be initiated and a change made to the document", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.transaction((doc) => {
+    undoRedo.change((doc) => {
       next.updateText(doc, ["name"], "Jane");
     });
 
     expect(handle.docSync().name).toBe("Jane");
   });
 
-  test("when a change is made in a transaction, the undo stack is formed", () => {
+  test("when a change is made in a tracked change, the undo stack is formed", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.transaction((doc) => {
+    undoRedo.change((doc) => {
       next.updateText(doc, ["name"], "Jane");
     });
 
@@ -50,18 +50,18 @@ describe("basic tests", () => {
     expect(undoRedo.canUndo).toBe(true);
   });
 
-  test("a message can be set on a transaction", () => {
+  test("a message can be set on a tracked change", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.transaction((doc) => {
+    undoRedo.change((doc) => {
       next.updateText(doc, ["name"], "Jane");
     }, "change name to Jane");
 
     expect(undoRedo.undos[0].message).toBe("change name to Jane");
   });
 
-  test("a transaction can be undone", () => {
+  test("a tracked change can be undone", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.transaction((doc) => {
+    undoRedo.change((doc) => {
       next.updateText(doc, ["name"], "Jane");
     });
 
@@ -76,9 +76,9 @@ describe("basic tests", () => {
     expect(handle.docSync().name).toBe("John");
   });
 
-  test("a transaction can be undone even when another change has been made", () => {
+  test("a tracked change can be undone even when another untracked change has been made", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.transaction((doc) => {
+    undoRedo.change((doc) => {
       next.updateText(
         doc,
         ["text"],
@@ -100,12 +100,12 @@ describe("basic tests", () => {
     );
   });
 
-  test("a transaction can be undone even when another change in another branch", () => {
+  test("a tracked change can be undone even when another untracked change in another branch has been made", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
 
     const branch = repo.clone(handle);
 
-    undoRedo.transaction((doc) => {
+    undoRedo.change((doc) => {
       next.updateText(
         doc,
         ["text"],
@@ -129,9 +129,9 @@ describe("basic tests", () => {
     );
   });
 
-  test("a transaction can be redone", () => {
+  test("a tracked change can be redone", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.transaction((doc) => {
+    undoRedo.change((doc) => {
       next.updateText(doc, ["name"], "Jane");
     });
 
@@ -146,5 +146,52 @@ describe("basic tests", () => {
     undoRedo.undo();
 
     expect(handle.docSync().name).toBe("John");
+  });
+
+  test("multiple changes can be undone and redone without rewriting history", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+    undoRedo.change((doc) => {
+      doc.age = 31;
+    });
+
+    undoRedo.change((doc) => {
+      doc.todos.push("buy bread");
+    });
+
+    undoRedo.change((doc) => {
+      next.updateText(doc, ["name"], "Jane");
+    });
+
+    expect(handle.docSync().name).toBe("Jane");
+    expect(handle.docSync().age).toBe(31);
+    expect(handle.docSync().todos).toEqual([
+      "buy milk",
+      "walk the dog",
+      "buy bread",
+    ]);
+
+    undoRedo.undo();
+    undoRedo.undo();
+    undoRedo.undo();
+
+    expect(getHeads(handle.docSync()).length).toEqual(1);
+
+    expect(handle.docSync().name).toBe("John");
+    expect(handle.docSync().age).toBe(30);
+    expect(handle.docSync().todos).toEqual(["buy milk", "walk the dog"]);
+
+    undoRedo.redo();
+    undoRedo.redo();
+    undoRedo.redo();
+
+    expect(handle.docSync().name).toBe("Jane");
+    expect(handle.docSync().age).toBe(31);
+    expect(handle.docSync().todos).toEqual([
+      "buy milk",
+      "walk the dog",
+      "buy bread",
+    ]);
+
+    expect(getHeads(handle.docSync()).length).toEqual(1);
   });
 });
