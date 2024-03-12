@@ -90,13 +90,55 @@ describe("basic tests", () => {
       next.updateText(
         doc,
         ["text"],
-        "The silly farmer enjoyed harvesting his ripe crop at the weekend.",
+        "The elated farmer enjoyed harvesting his ripe crop at the weekend.",
       );
     });
 
     undoRedo.undo();
+    expect(next.getHeads(handle.docSync()).length).toBe(2);
     expect(handle.docSync().text).toBe(
-      "The silly farmer enjoyed harvesting his ripe crop.",
+      "The elated farmer enjoyed harvesting his ripe crop.",
+    );
+  });
+
+  test("a tracked change can be undone at the head of the document even when another untracked change has been made", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+    undoRedo.change((doc) => {
+      next.updateText(
+        doc,
+        ["text"],
+        "The jolly farmer enjoyed harvesting his ripe crop at the weekend.",
+      );
+    });
+
+    handle.change((doc) => {
+      next.updateText(
+        doc,
+        ["text"],
+        "The elated farmer enjoyed harvesting his ripe crop at the weekend.",
+      );
+    });
+
+    undoRedo.change((doc) => {
+      next.updateText(
+        doc,
+        ["text"],
+        "The elated farmer enjoyed reaping his ripe crop at the weekend.",
+      );
+    });
+
+    undoRedo.undo();
+    // this should have been applied to the head of the document, so we have one head
+    expect(next.getHeads(handle.docSync()).length).toBe(1);
+    expect(handle.docSync().text).toBe(
+      "The elated farmer enjoyed harvesting his ripe crop at the weekend.",
+    );
+
+    undoRedo.undo();
+    // there has been an untracked change here, so the history has been rewritten
+    expect(next.getHeads(handle.docSync()).length).toBe(2);
+    expect(handle.docSync().text).toBe(
+      "The elated farmer enjoyed harvesting his ripe crop.",
     );
   });
 
