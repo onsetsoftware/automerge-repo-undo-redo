@@ -105,11 +105,19 @@ export class AutomergeRepoUndoRedo<T> {
 
         change.redo.heads = afterHeads;
       } else {
-        const heads = this.#docHandle.changeAt(change.undo.heads, (doc) => {
-          change.undo.patches.forEach((p) => {
-            patch<T>(doc, p);
-          });
-        });
+        const heads = this.#docHandle.changeAt(
+          change.undo.heads,
+          (doc) => {
+            change.undo.patches.forEach((p) => {
+              patch<T>(doc, p);
+            });
+          },
+          {
+            patchCallback: (patches, { before }) => {
+              change.redo.patches = unpatchAll(before, patches);
+            },
+          },
+        );
 
         if (heads) {
           change.redo.heads = heads;

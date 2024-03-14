@@ -190,6 +190,33 @@ describe("basic tests", () => {
     );
   });
 
+  test("local undo + global redo", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+    undoRedo.change((doc) => {
+      doc.name = "Jane";
+    });
+
+    undoRedo.change((doc) => {
+      doc.name = "Reginald";
+    });
+
+    handle.change((doc) => {
+      doc.name = "Bob";
+    });
+
+    undoRedo.undo();
+    expect(handle.docSync().name).toBe("Jane");
+
+    undoRedo.undo();
+    expect(handle.docSync().name).toBe("John");
+
+    undoRedo.redo();
+    expect(handle.docSync().name).toBe("Jane");
+
+    undoRedo.redo();
+    expect(handle.docSync().name).toBe("Bob");
+  });
+
   test("a tracked change can be redone", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
     undoRedo.change((doc) => {
