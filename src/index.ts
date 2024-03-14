@@ -57,6 +57,8 @@ export class AutomergeRepoUndoRedo<T> {
         },
         message,
       });
+
+      this.#redos = [];
     };
 
     this.#docHandle.change(changeFn, { ...options, patchCallback });

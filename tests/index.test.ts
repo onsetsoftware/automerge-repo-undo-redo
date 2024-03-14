@@ -26,6 +26,7 @@ describe("basic tests", () => {
       todos: ["buy milk", "walk the dog"],
     });
   });
+
   test("An undo redo class can be instantiated", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
     expect(undoRedo).toBeDefined();
@@ -74,6 +75,24 @@ describe("basic tests", () => {
     expect(undoRedo.canRedo).toBe(true);
 
     expect(handle.docSync().name).toBe("John");
+  });
+
+  test("a change following an undo resets the redo stack", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+    undoRedo.change((doc) => {
+      next.updateText(doc, ["name"], "Jane");
+    });
+
+    undoRedo.undo();
+
+    expect(undoRedo.canRedo).toBe(true);
+
+    undoRedo.change((doc) => {
+      next.updateText(doc, ["name"], "Jane");
+    });
+
+    expect(undoRedo.redos.length).toBe(0);
+    expect(undoRedo.canRedo).toBe(false);
   });
 
   test("a tracked change can be undone even when another untracked change has been made", () => {
