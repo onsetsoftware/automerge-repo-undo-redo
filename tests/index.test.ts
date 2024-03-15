@@ -2,13 +2,7 @@ import { AutomergeRepoUndoRedo } from "../src";
 import { DocHandle, Repo } from "@automerge/automerge-repo";
 import { beforeEach, describe, expect, test } from "vitest";
 import { getHeads, next } from "@automerge/automerge";
-
-type Data = {
-  text: string;
-  name: string;
-  age: number;
-  todos: string[];
-};
+import { Data, getHandle } from "./data";
 
 describe("basic tests", () => {
   let handle: DocHandle<Data>;
@@ -19,12 +13,7 @@ describe("basic tests", () => {
       network: [],
     });
 
-    handle = repo.create({
-      text: "The jolly farmer enjoyed harvesting his ripe crop.",
-      name: "John",
-      age: 30,
-      todos: ["buy milk", "walk the dog"],
-    });
+    handle = getHandle(repo);
   });
 
   test("An undo redo class can be instantiated", () => {

@@ -31,11 +31,45 @@ export class AutomergeRepoUndoRedo<T> {
     this.#docHandle = docHandle;
   }
 
+  #isTransaction = false;
+
+  #changeStack: ChangeFn<T>[] = [];
+
+  transaction(fn: () => string | void, message?: string) {
+    this.startTransaction();
+    message = fn() ?? message;
+    this.endTransaction(message);
+  }
+
+  startTransaction() {
+    if (this.#isTransaction) {
+      throw new Error("Already in a transaction");
+    }
+
+    this.#isTransaction = true;
+    this.#changeStack = [];
+  }
+
+  endTransaction(message?: string) {
+    this.#isTransaction = false;
+
+    this.change((doc) => {
+      this.#changeStack.forEach((change) => {
+        change(doc);
+      });
+    }, message);
+  }
+
   change(
     changeFn: ChangeFn<T>,
     options?: string | ChangeOptions<T>,
     message?: string,
   ) {
+    if (this.#isTransaction) {
+      this.#changeStack.push(changeFn);
+      return;
+    }
+
     if (typeof options === "string") {
       message = options;
       options = {};
