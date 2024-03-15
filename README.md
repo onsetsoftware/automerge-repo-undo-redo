@@ -1,4 +1,4 @@
-# Automerge Repo Undo Redo (very much WIP)
+# Automerge Repo Undo Redo
 
 This is a simple wrapper around an Automerge Repo `DocHandle` which adds undo and redo functionality.
 
@@ -28,6 +28,26 @@ undoRedo.undo(); // doc => { age: 34, name: "Jeremy Irons" }
 undoRedo.redo(); // doc.age => 35
 ```
 
+## Transactions
+
+Changes can be batched together in "transactions". Use the `transaction` method, which takes a callback to contain your changes, and a message.
+
+```ts
+undoRedo.transaction(() => {
+  undoRedo.change((doc) => {
+    doc.age = 35;
+  })
+
+  // this function contains a change somewhere else in your app
+  // and sets the document `name` to "Bob"
+  updateName();
+})
+
+console.log(undoRedo.docSync()); // doc => { age: 35, name: "Bob" }
+
+// undo now reverses the whole transaction
+undoRedo.undo(); // => { age: 30, name: "Jeremy" }
+```
 
 ## Concepts
 
