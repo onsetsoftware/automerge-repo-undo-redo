@@ -68,4 +68,56 @@ describe("Manager Tests", () => {
 
     expect(stateHandle.docSync().selected).toEqual([0, 1]);
   });
+
+  test("a transaction doesn't have to involve all handles", () => {
+    manager.transaction(
+      () => {
+        undoableHandle.change((doc) => {
+          next.updateText(
+            doc,
+            ["text"],
+            "The ecstatic farmer enjoyed harvesting his ripe crop.",
+          );
+        });
+      },
+      { description: "Change text" },
+    );
+
+    expect(handle.docSync().text).toBe(
+      "The ecstatic farmer enjoyed harvesting his ripe crop.",
+    );
+    expect(stateHandle.docSync().selected).toEqual([0]);
+
+    manager.transaction(
+      () => {
+        undoableStateHandle.change((doc) => {
+          insertAt(doc.selected, 1, 1);
+        });
+      },
+      { description: "Select two items" },
+    );
+
+    expect(handle.docSync().text).toBe(
+      "The ecstatic farmer enjoyed harvesting his ripe crop.",
+    );
+    expect(stateHandle.docSync().selected).toEqual([0, 1]);
+
+    manager.undo();
+    expect(handle.docSync().text).toBe(
+      "The ecstatic farmer enjoyed harvesting his ripe crop.",
+    );
+    expect(stateHandle.docSync().selected).toEqual([0]);
+
+    manager.undo();
+    expect(stateHandle.docSync().selected).toEqual([0]);
+    expect(handle.docSync().text).toBe(
+      "The jolly farmer enjoyed harvesting his ripe crop.",
+    );
+
+    manager.redo();
+    expect(handle.docSync().text).toBe(
+      "The ecstatic farmer enjoyed harvesting his ripe crop.",
+    );
+    expect(stateHandle.docSync().selected).toEqual([0]);
+  });
 });
