@@ -1,7 +1,7 @@
-import { AutomergeRepoUndoRedo } from "../src";
+import { next } from "@automerge/automerge";
 import { DocHandle, Repo } from "@automerge/automerge-repo";
 import { beforeEach, describe, expect, test } from "vitest";
-import { getHeads, next } from "@automerge/automerge";
+import { AutomergeRepoUndoRedo } from "../src";
 import { Data, getHandle } from "./data";
 
 describe("basic tests", () => {
@@ -30,23 +30,57 @@ describe("basic tests", () => {
     expect(handle.docSync().name).toBe("Jane");
   });
 
+  test("a change returns true if a change has been made", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+    const result = undoRedo.change((doc) => {
+      next.updateText(doc, ["name"], "Jane");
+    });
+
+    expect(result).toBe(true);
+
+    const result2 = undoRedo.change((doc) => {
+      next.updateText(doc, ["name"], "Jane");
+    });
+
+    expect(result2).toBe(false);
+  });
+
+  test("a change can take a patch callback", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+    return new Promise((resolve) => {
+      undoRedo.change(
+        (doc) => {
+          next.updateText(doc, ["name"], "Jane");
+        },
+        {
+          patchCallback: (patches) => {
+            resolve(patches);
+          },
+        },
+      );
+    });
+  });
+
   test("when a change is made in a tracked change, the undo stack is formed", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
     undoRedo.change((doc) => {
       next.updateText(doc, ["name"], "Jane");
     });
 
-    expect(undoRedo.undos.length).toBe(1);
-    expect(undoRedo.canUndo).toBe(true);
+    expect(undoRedo.undos().length).toBe(1);
+    expect(undoRedo.canUndo()).toBe(true);
   });
 
-  test("a message can be set on a tracked change", () => {
+  test("a description can be set on a tracked change", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.change((doc) => {
-      next.updateText(doc, ["name"], "Jane");
-    }, "change name to Jane");
+    undoRedo.change(
+      (doc) => {
+        next.updateText(doc, ["name"], "Jane");
+      },
+      { description: "change name to Jane" },
+    );
 
-    expect(undoRedo.undos[0].message).toBe("change name to Jane");
+    expect(undoRedo.undos()[0].description).toBe("change name to Jane");
   });
 
   test("a tracked change can be undone", () => {
@@ -57,11 +91,11 @@ describe("basic tests", () => {
 
     undoRedo.undo();
 
-    expect(undoRedo.undos.length).toBe(0);
-    expect(undoRedo.canUndo).toBe(false);
+    expect(undoRedo.undos().length).toBe(0);
+    expect(undoRedo.canUndo()).toBe(false);
 
-    expect(undoRedo.redos.length).toBe(1);
-    expect(undoRedo.canRedo).toBe(true);
+    expect(undoRedo.redos().length).toBe(1);
+    expect(undoRedo.canRedo()).toBe(true);
 
     expect(handle.docSync().name).toBe("John");
   });
@@ -74,14 +108,14 @@ describe("basic tests", () => {
 
     undoRedo.undo();
 
-    expect(undoRedo.canRedo).toBe(true);
+    expect(undoRedo.canRedo()).toBe(true);
 
     undoRedo.change((doc) => {
       next.updateText(doc, ["name"], "Jane");
     });
 
-    expect(undoRedo.redos.length).toBe(0);
-    expect(undoRedo.canRedo).toBe(false);
+    expect(undoRedo.redos().length).toBe(0);
+    expect(undoRedo.canRedo()).toBe(false);
   });
 
   test("a tracked change can be undone even when another untracked change has been made", () => {
@@ -225,19 +259,29 @@ describe("basic tests", () => {
     expect(handle.docSync().name).toBe("John");
   });
 
-  test("multiple changes can be undone and redone without rewriting history", () => {
+  test("changes can be scoped and selectively undone and redone", () => {
     const undoRedo = new AutomergeRepoUndoRedo(handle);
-    undoRedo.change((doc) => {
-      doc.age = 31;
-    });
 
-    undoRedo.change((doc) => {
-      doc.todos.push("buy bread");
-    });
+    undoRedo.change(
+      (doc) => {
+        doc.age = 31;
+      },
+      { scope: "Modal" },
+    );
 
-    undoRedo.change((doc) => {
-      next.updateText(doc, ["name"], "Jane");
-    });
+    undoRedo.change(
+      (doc) => {
+        doc.todos.push("buy bread");
+      },
+      { scope: "Modal" },
+    );
+
+    undoRedo.change(
+      (doc) => {
+        next.updateText(doc, ["name"], "Jane");
+      },
+      { scope: "Form" },
+    );
 
     expect(handle.docSync().name).toBe("Jane");
     expect(handle.docSync().age).toBe(31);
@@ -248,27 +292,132 @@ describe("basic tests", () => {
     ]);
 
     undoRedo.undo();
-    undoRedo.undo();
-    undoRedo.undo();
+    // nothing should have changed yet
+    expect(handle.docSync().name).toBe("Jane");
+    expect(handle.docSync().age).toBe(31);
+    expect(handle.docSync().todos).toEqual([
+      "buy milk",
+      "walk the dog",
+      "buy bread",
+    ]);
 
-    expect(getHeads(handle.docSync()).length).toEqual(1);
+    undoRedo.undo("Modal");
+    expect(handle.docSync().name).toBe("Jane");
+    expect(handle.docSync().age).toBe(31);
+    expect(handle.docSync().todos).toEqual(["buy milk", "walk the dog"]);
 
+    undoRedo.undo("Modal");
+    expect(handle.docSync().name).toBe("Jane");
+    expect(handle.docSync().age).toBe(30);
+    expect(handle.docSync().todos).toEqual(["buy milk", "walk the dog"]);
+
+    undoRedo.undo("Form");
+    expect(handle.docSync().name).toBe("John");
+    expect(handle.docSync().age).toBe(30);
+    expect(handle.docSync().todos).toEqual(["buy milk", "walk the dog"]);
+    //
+    undoRedo.redo();
+    // nothing should have changed yet
     expect(handle.docSync().name).toBe("John");
     expect(handle.docSync().age).toBe(30);
     expect(handle.docSync().todos).toEqual(["buy milk", "walk the dog"]);
 
-    undoRedo.redo();
-    undoRedo.redo();
-    undoRedo.redo();
-
-    expect(handle.docSync().name).toBe("Jane");
+    undoRedo.redo("Modal");
+    expect(handle.docSync().name).toBe("John");
     expect(handle.docSync().age).toBe(31);
-    expect(handle.docSync().todos).toEqual([
-      "buy milk",
-      "walk the dog",
-      "buy bread",
-    ]);
+    expect(handle.docSync().todos).toEqual(["buy milk", "walk the dog"]);
+  });
 
-    expect(getHeads(handle.docSync()).length).toEqual(1);
+  test("changes can be scoped and selectively undone and redone 2", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+
+    undoRedo.change(
+      (doc) => {
+        next.updateText(
+          doc,
+          ["text"],
+          "The recalcitrant farmer enjoyed harvesting his ripe crop.",
+        );
+      },
+      { scope: "Modal" },
+    );
+
+    undoRedo.change(
+      (doc) => {
+        next.updateText(
+          doc,
+          ["text"],
+          "The recalcitrant farmer enjoyed harvesting his crop.",
+        );
+      },
+      { scope: "Form" },
+    );
+
+    expect(handle.docSync().text).toEqual(
+      "The recalcitrant farmer enjoyed harvesting his crop.",
+    );
+
+    undoRedo.undo();
+    // nothing should have changed yet
+    expect(handle.docSync().text).toEqual(
+      "The recalcitrant farmer enjoyed harvesting his crop.",
+    );
+
+    undoRedo.undo("Modal");
+    expect(handle.docSync().text).toEqual(
+      "The jolly farmer enjoyed harvesting his crop.",
+    );
+
+    undoRedo.undo("Form");
+    expect(handle.docSync().text).toEqual(
+      "The jolly farmer enjoyed harvesting his ripe crop.",
+    );
+    //
+    undoRedo.redo();
+    // nothing should have changed yet
+    expect(handle.docSync().text).toEqual(
+      "The jolly farmer enjoyed harvesting his ripe crop.",
+    );
+
+    undoRedo.redo("Modal");
+    expect(handle.docSync().text).toEqual(
+      "The recalcitrant farmer enjoyed harvesting his ripe crop.",
+    );
+  });
+
+  test("can get the list of undos for a specific scope", () => {
+    const undoRedo = new AutomergeRepoUndoRedo(handle);
+
+    undoRedo.change(
+      (doc) => {
+        doc.age = 31;
+      },
+      { scope: "Modal" },
+    );
+
+    undoRedo.change(
+      (doc) => {
+        doc.todos.push("buy bread");
+      },
+      { scope: "Modal" },
+    );
+
+    undoRedo.change(
+      (doc) => {
+        next.updateText(doc, ["name"], "Jane");
+      },
+      { scope: "Form" },
+    );
+
+    expect(undoRedo.undos("Modal").length).toBe(2);
+    expect(undoRedo.undos("Form").length).toBe(1);
+
+    undoRedo.undo("Modal");
+
+    expect(undoRedo.undos("Modal").length).toBe(1);
+    expect(undoRedo.redos("Modal").length).toBe(1);
+    expect(undoRedo.undos("Form").length).toBe(1);
+
+    expect(undoRedo.undos().length).toBe(0);
   });
 });

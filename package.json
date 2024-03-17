@@ -35,6 +35,6 @@
   },
   "types": "./dist/types/index.d.ts",
   "dependencies": {
-    "@onsetsoftware/automerge-patcher": "^0.10.0"
+    "@onsetsoftware/automerge-patcher": "^0.12.0"
   }
 }
