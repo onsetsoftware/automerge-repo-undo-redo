@@ -166,15 +166,14 @@ export class AutomergeRepoUndoRedo<T> {
           });
         });
 
-        const patches = next.diff(
-          this.#docHandle.docSync()!,
-          change.undo.heads,
-          heads,
-        );
-
-        change.redo.patches = unpatchAll(before, patches);
-
         if (heads) {
+          const patches = next.diff(
+            this.#docHandle.docSync()!,
+            change.undo.heads,
+            heads,
+          );
+
+          change.redo.patches = unpatchAll(before, patches);
           change.redo.heads = heads;
         }
       }

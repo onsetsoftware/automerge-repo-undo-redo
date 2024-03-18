@@ -1,4 +1,4 @@
-import { DocHandle, DocumentId } from "@automerge/automerge-repo";
+import type { DocHandle, DocumentId } from "@automerge/automerge-repo";
 import {
   AutomergeRepoUndoRedo,
   UndoRedoOptions,
