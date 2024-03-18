@@ -24,11 +24,8 @@ describe("Manager Tests", () => {
     stateHandle = getStateHandle(repo);
 
     manager = new UndoRedoManager();
-    manager.addHandle(handle);
-    manager.addHandle(stateHandle);
-
-    undoableHandle = manager.getUndoRedoHandle(handle.documentId)!;
-    undoableStateHandle = manager.getUndoRedoHandle(stateHandle.documentId)!;
+    undoableHandle = manager.addHandle(handle);
+    undoableStateHandle = manager.addHandle(stateHandle);
   });
 
   test("A series of changes in different stores can be batched up into a single transaction", () => {

@@ -15,7 +15,10 @@ export class UndoRedoManager {
   #redoStack: Record<string | symbol, Change[]> = { [baseStack]: [] };
 
   addHandle<T>(handle: DocHandle<T>) {
-    this.#handles.set(handle.documentId, new AutomergeRepoUndoRedo(handle));
+    const undoableHandle = new AutomergeRepoUndoRedo(handle);
+    this.#handles.set(handle.documentId, undoableHandle);
+
+    return undoableHandle;
   }
 
   getUndoRedoHandle<T>(
