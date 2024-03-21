@@ -174,4 +174,8 @@ describe("Single Handle Transaction Tests", () => {
 
     expect(result2).toBe(true);
   });
+
+  test.todo(
+    "check that a transaction is closed if an error is thrown in the transaction function",
+  );
 });

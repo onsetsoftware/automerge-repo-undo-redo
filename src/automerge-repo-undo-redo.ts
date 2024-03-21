@@ -22,7 +22,7 @@ export type UndoRedoOptions<T> = ChangeOptions<T> & {
 const equalArrays = (a: any[], b: any[]) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
 
-export const baseStack = Symbol("baseStack");
+export const defaultScope = Symbol("baseStack");
 
 export class AutomergeRepoUndoRedo<T> {
   #docHandle: DocHandle<T>;
@@ -32,7 +32,7 @@ export class AutomergeRepoUndoRedo<T> {
   }
 
   #stacks: Record<string | symbol, { undos: Change[]; redos: Change[] }> = {
-    [baseStack]: { undos: [], redos: [] },
+    [defaultScope]: { undos: [], redos: [] },
   };
 
   constructor(docHandle: DocHandle<T>) {
@@ -75,7 +75,9 @@ export class AutomergeRepoUndoRedo<T> {
     }
 
     const scope =
-      typeof options === "object" && options?.scope ? options.scope : baseStack;
+      typeof options === "object" && options?.scope
+        ? options.scope
+        : defaultScope;
 
     const stack = this.getStack(scope);
 
@@ -112,30 +114,29 @@ export class AutomergeRepoUndoRedo<T> {
     return ps.length > 0;
   }
 
-  canUndo(scope: string | symbol = baseStack) {
+  canUndo(scope: string | symbol = defaultScope) {
     const stack = this.getStack(scope);
     return stack.undos.length > 0;
   }
 
-  canRedo(scope: string | symbol = baseStack) {
+  canRedo(scope: string | symbol = defaultScope) {
     const stack = this.getStack(scope);
     return stack.redos.length > 0;
   }
 
-  undos(scope: string | symbol = baseStack) {
+  undos(scope: string | symbol = defaultScope) {
     const stack = this.getStack(scope);
     return stack.undos;
   }
 
-  redos(scope: string | symbol = baseStack) {
+  redos(scope: string | symbol = defaultScope) {
     const stack = this.getStack(scope);
     return stack.redos;
   }
 
-  undo(scope: string | symbol = baseStack) {
+  undo(scope: string | symbol = defaultScope) {
     const stack = this.getStack(scope);
     const change = stack.undos.pop();
-    console.log(change?.undo.patches);
     if (change) {
       const doc = this.#docHandle.docSync();
       let heads = next.getHeads(doc!);
@@ -182,7 +183,7 @@ export class AutomergeRepoUndoRedo<T> {
     }
   }
 
-  redo(scope: string | symbol = baseStack) {
+  redo(scope: string | symbol = defaultScope) {
     const stack = this.getStack(scope);
     const change = stack.redos.pop();
     if (change) {

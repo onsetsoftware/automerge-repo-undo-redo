@@ -2,7 +2,7 @@ import type { DocHandle, DocumentId } from "@automerge/automerge-repo";
 import {
   AutomergeRepoUndoRedo,
   UndoRedoOptions,
-  baseStack,
+  defaultScope,
 } from "./automerge-repo-undo-redo";
 
 type Change = { description: string | undefined; ids: DocumentId[] };
@@ -10,9 +10,9 @@ type Change = { description: string | undefined; ids: DocumentId[] };
 export class UndoRedoManager {
   #handles: Map<DocumentId, AutomergeRepoUndoRedo<any>> = new Map();
 
-  #undoStack: Record<string | symbol, Change[]> = { [baseStack]: [] };
+  #undoStack: Record<string | symbol, Change[]> = { [defaultScope]: [] };
 
-  #redoStack: Record<string | symbol, Change[]> = { [baseStack]: [] };
+  #redoStack: Record<string | symbol, Change[]> = { [defaultScope]: [] };
 
   addHandle<T>(handle: DocHandle<T>) {
     const undoableHandle = new AutomergeRepoUndoRedo(handle);
@@ -28,27 +28,47 @@ export class UndoRedoManager {
   }
 
   transaction(fn: () => string | void, options: UndoRedoOptions<unknown> = {}) {
-    const scope = options.scope ?? baseStack;
-
-    this.#handles.forEach((handle) => {
-      handle.startTransaction();
-    });
+    this.startTransaction();
 
     const description = fn() ?? options?.description;
 
-    const results = [...this.#handles]
-      .map(([id, handle]) => {
-        return handle.endTransaction({ ...options, description }) ? id : null;
-      })
-      .filter((id): id is DocumentId => id !== null);
+    return this.endTransaction({ ...options, description });
+  }
 
-    this.#undoStack[scope].push({
-      description,
-      ids: results,
+  startTransaction() {
+    this.#handles.forEach((handle) => {
+      handle.startTransaction();
     });
   }
 
-  undo(scope: string | symbol = baseStack) {
+  endTransaction(options: UndoRedoOptions<unknown> = {}) {
+    const scope = options.scope ?? defaultScope;
+
+    const results = [...this.#handles]
+      .map(([id, handle]) => {
+        return handle.endTransaction(options) ? id : null;
+      })
+      .filter((id): id is DocumentId => id !== null);
+
+    if (results.length === 0) {
+      return;
+    }
+
+    this.#undoStack[scope].push({
+      description: options.description,
+      ids: results,
+    });
+
+    this.#redoStack[scope] = [];
+
+    return {
+      description: options.description,
+      ids: results,
+      scope,
+    };
+  }
+
+  undo(scope: string | symbol = defaultScope) {
     const change = this.#undoStack[scope].pop();
 
     if (!change) {
@@ -63,14 +83,16 @@ export class UndoRedoManager {
     });
 
     this.#redoStack[scope].push(change);
+
+    return { ...change, scope };
   }
 
-  undos(scope: string | symbol = baseStack) {
+  undos(scope: string | symbol = defaultScope) {
     return this.#undoStack[scope].map((change) => change.description);
   }
 
-  redo(scope: string | symbol = baseStack) {
-    scope = scope ?? baseStack;
+  redo(scope: string | symbol = defaultScope) {
+    scope = scope ?? defaultScope;
 
     const change = this.#redoStack[scope].pop();
 
@@ -86,11 +108,21 @@ export class UndoRedoManager {
     });
 
     this.#undoStack[scope].push(change);
+
+    return { ...change, scope };
   }
 
-  redos(scope: string | symbol = baseStack) {
-    scope = scope ?? baseStack;
+  redos(scope: string | symbol = defaultScope) {
+    scope = scope ?? defaultScope;
 
     return this.#redoStack[scope].map((change) => change.description);
+  }
+
+  canUndo(scope: string | symbol = defaultScope) {
+    return this.#undoStack[scope].length > 0;
+  }
+
+  canRedo(scope: string | symbol = defaultScope) {
+    return this.#redoStack[scope].length > 0;
   }
 }
