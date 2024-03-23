@@ -28,8 +28,23 @@ describe("Manager Tests", () => {
     undoableStateHandle = manager.addHandle(stateHandle);
   });
 
+  test("A manager can take a plain DocHandle and return an undoable handle", () => {
+    expect(undoableHandle).toBeDefined();
+    expect(undoableHandle).toBeInstanceOf(AutomergeRepoUndoRedo);
+    expect(undoableStateHandle).toBeDefined();
+  });
+
+  test("A manager can take an instance of AutomergeRepoUndoRedo and return the same instance", () => {
+    const anotherHandle = repo.create();
+    const undoableAnotherHandle = new AutomergeRepoUndoRedo(anotherHandle);
+    const newHandle = manager.addHandle(undoableAnotherHandle);
+    expect(newHandle).toBe(undoableAnotherHandle);
+  });
+
   test("A series of changes in different stores can be batched up into a single transaction", () => {
-    manager.transaction(
+    const { undo, redo, transaction } = manager;
+
+    transaction(
       () => {
         undoableHandle.change((doc) => {
           next.updateText(
@@ -53,7 +68,7 @@ describe("Manager Tests", () => {
     );
     expect(stateHandle.docSync().selected).toEqual([0, 1]);
 
-    manager.undo();
+    undo();
     expect(handle.docSync().text).toBe(
       "The jolly farmer enjoyed harvesting his ripe crop.",
     );
@@ -63,7 +78,7 @@ describe("Manager Tests", () => {
     expect(manager.canUndo()).toBe(false);
     expect(manager.canRedo()).toBe(true);
 
-    manager.redo();
+    redo();
     expect(handle.docSync().text).toBe(
       "The ecstatic farmer enjoyed harvesting his ripe crop.",
     );
@@ -199,4 +214,6 @@ describe("Manager Tests", () => {
   test.todo(
     "check that a transaction is closed if an error is thrown in the transaction function",
   );
+
+  test.todo("if an undo produces no patches, do the next one");
 });

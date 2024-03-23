@@ -14,9 +14,12 @@ export class UndoRedoManager {
 
   #redoStack: Record<string | symbol, Change[]> = { [defaultScope]: [] };
 
-  addHandle<T>(handle: DocHandle<T>) {
-    const undoableHandle = new AutomergeRepoUndoRedo(handle);
-    this.#handles.set(handle.documentId, undoableHandle);
+  addHandle<T>(handle: DocHandle<T> | AutomergeRepoUndoRedo<T>) {
+    const undoableHandle =
+      handle instanceof AutomergeRepoUndoRedo
+        ? handle
+        : new AutomergeRepoUndoRedo(handle);
+    this.#handles.set(undoableHandle.handle.documentId, undoableHandle);
 
     return undoableHandle;
   }
@@ -27,12 +30,19 @@ export class UndoRedoManager {
     return this.#handles.get(documentId);
   }
 
-  transaction(fn: () => string | void, options: UndoRedoOptions<unknown> = {}) {
+  #transaction(
+    fn: () => string | void,
+    options: UndoRedoOptions<unknown> = {},
+  ) {
     this.startTransaction();
 
     const description = fn() ?? options?.description;
 
     return this.endTransaction({ ...options, description });
+  }
+
+  get transaction() {
+    return this.#transaction.bind(this);
   }
 
   startTransaction() {
@@ -68,7 +78,7 @@ export class UndoRedoManager {
     };
   }
 
-  undo(scope: string | symbol = defaultScope) {
+  #undo(scope: string | symbol = defaultScope) {
     const change = this.#undoStack[scope].pop();
 
     if (!change) {
@@ -87,11 +97,15 @@ export class UndoRedoManager {
     return { ...change, scope };
   }
 
+  get undo() {
+    return this.#undo.bind(this);
+  }
+
   undos(scope: string | symbol = defaultScope) {
     return this.#undoStack[scope].map((change) => change.description);
   }
 
-  redo(scope: string | symbol = defaultScope) {
+  #redo(scope: string | symbol = defaultScope) {
     scope = scope ?? defaultScope;
 
     const change = this.#redoStack[scope].pop();
@@ -110,6 +124,10 @@ export class UndoRedoManager {
     this.#undoStack[scope].push(change);
 
     return { ...change, scope };
+  }
+
+  get redo() {
+    return this.#redo.bind(this);
   }
 
   redos(scope: string | symbol = defaultScope) {

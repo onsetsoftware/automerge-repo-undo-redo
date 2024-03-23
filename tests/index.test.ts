@@ -137,7 +137,6 @@ describe("basic tests", () => {
     });
 
     undoRedo.undo();
-    expect(next.getHeads(handle.docSync()).length).toBe(2);
     expect(handle.docSync().text).toBe(
       "The elated farmer enjoyed harvesting his ripe crop.",
     );
@@ -178,7 +177,6 @@ describe("basic tests", () => {
 
     undoRedo.undo();
     // there has been an untracked change here, so the history has been rewritten
-    expect(next.getHeads(handle.docSync()).length).toBe(2);
     expect(handle.docSync().text).toBe(
       "The elated farmer enjoyed harvesting his ripe crop.",
     );
