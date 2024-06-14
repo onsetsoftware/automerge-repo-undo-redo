@@ -211,6 +211,42 @@ describe("Manager Tests", () => {
     expect(manager.canRedo()).toBe(false);
   });
 
+  test.only("Can apply consectuive redos on text", () => {
+    // Clean up initial state
+    undoableHandle.change((doc) => {
+      next.splice(doc, ["text"], 0, 50, "");
+    });
+
+    // Add two tracked changes
+    undoableHandle.change((doc) => {
+      next.splice(doc, ["text"], 0, 0, "a");
+    });
+    undoableHandle.change((doc) => {
+      next.splice(doc, ["text"], 1, 0, "b");
+    });
+
+    // Assert
+    expect(handle.docSync().text).toBe("ab");
+
+    // Add an untracked change
+    handle.change((doc) => {
+      next.splice(doc, ["text"], 2, 0, "c");
+    });
+
+    // Assert
+    expect(handle.docSync().text).toBe("abc");
+
+    // Perform a series of undos and redos
+    undoableHandle.undo();
+    expect(handle.docSync().text).toBe("ac");
+    undoableHandle.undo();
+    expect(handle.docSync().text).toBe("c");
+    undoableHandle.redo();
+    expect(handle.docSync().text).toBe("ac");
+    undoableHandle.redo();
+    expect(handle.docSync().text).toBe("abc");
+  });
+
   test.todo(
     "check that a transaction is closed if an error is thrown in the transaction function",
   );
