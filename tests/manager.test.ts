@@ -211,7 +211,7 @@ describe("Manager Tests", () => {
     expect(manager.canRedo()).toBe(false);
   });
 
-  test.only("Can apply consectuive redos on text", () => {
+  test("Can apply consectuive redos on text", () => {
     // Clean up initial state
     undoableHandle.change((doc) => {
       next.splice(doc, ["text"], 0, 50, "");
