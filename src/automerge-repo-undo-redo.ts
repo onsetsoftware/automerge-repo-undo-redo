@@ -174,7 +174,7 @@ export class AutomergeRepoUndoRedo<T> {
             heads,
           );
 
-          change.redo.patches = unpatchAll(before, patches);
+          // change.redo.patches = unpatchAll(before, patches);
           change.redo.heads = heads;
         }
       }
@@ -216,6 +216,10 @@ export class AutomergeRepoUndoRedo<T> {
         });
 
         if (heads) {
+          if (stack.redos.length > 0) {
+            const nextRedo = stack.redos[stack.redos.length - 1];
+            nextRedo.redo.heads = heads;
+          }
           change.undo.heads = heads;
         }
       }
