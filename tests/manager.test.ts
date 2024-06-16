@@ -211,6 +211,57 @@ describe("Manager Tests", () => {
     expect(manager.canRedo()).toBe(false);
   });
 
+  describe('untracked changes on text', () => {
+    let undoableHandle2
+    
+    beforeEach(() => {
+      undoableHandle2 = new AutomergeRepoUndoRedo(handle);
+
+      // Clean up initial state
+      undoableHandle.change((doc) => {
+        next.splice(doc, ["text"], 0, 50, "");
+      });
+
+      // Add two tracked changes
+      undoableHandle.change((doc) => {
+        next.splice(doc, ["text"], 0, 0, "a");
+      });
+      undoableHandle.change((doc) => {
+        next.splice(doc, ["text"], 1, 0, "b");
+      });
+
+      // Add untracked changes
+      undoableHandle2.change((doc) => {
+        next.splice(doc, ["text"], 2, 0, "c");
+      });
+      undoableHandle2.change((doc) => {
+        next.splice(doc, ["text"], 3, 0, "d");
+      });
+    })
+    test("can apply consecutive redos on untracked text", () => {
+      undoableHandle.undo();
+      expect(handle.docSync().text).toBe("acd");
+      undoableHandle.undo();
+      expect(handle.docSync().text).toBe("cd");
+      undoableHandle.redo();
+      expect(handle.docSync().text).toBe("acd");
+      undoableHandle.redo();
+      expect(handle.docSync().text).toBe("abcd");
+    });
+
+    test("can apply redos and undos", () => {
+      undoableHandle.undo();
+      expect(handle.docSync().text).toBe("acd");
+
+      undoableHandle2.undo();
+      expect(handle.docSync().text).toBe("ac");
+
+      undoableHandle2.redo();
+      expect(handle.docSync().text).toBe("acd");
+    });
+  })
+
+
   test.todo(
     "check that a transaction is closed if an error is thrown in the transaction function",
   );
